@@ -26,7 +26,11 @@ use embassy_time::{Duration, Instant, Timer};
 use heapless::Vec;
 use num_enum::{TryFromPrimitive, TryFromPrimitiveError};
 
-use crate::{DONGLE_ADDRESS, DONGLE_PREFIX, KEYBOARD_ADDRESS, LEFT_PREFIX, RIGHT_PREFIX};
+pub const DONGLE_ADDRESS: u32 = 0x0A55_0A55;
+pub const DONGLE_PREFIX: u8 = 0x42;
+pub const KEYBOARD_ADDRESS: u32 = 0x0727_0727;
+pub const LEFT_PREFIX: u8 = 0x21;
+pub const RIGHT_PREFIX: u8 = 0x25;
 
 const BUFFER_SIZE: usize = 32;
 const META_SIZE: usize = 3;
@@ -53,8 +57,8 @@ impl interrupt::typelevel::Handler<typelevel::RADIO> for InterruptHandler {
 }
 
 pub struct LogInfo {
-    retranmisisons: u32,
-    time_elapsed: Duration,
+    pub retranmisisons: u32,
+    pub time_elapsed: Duration,
 }
 
 #[derive(Clone, Copy)]
@@ -176,7 +180,7 @@ impl<'d> Radio<'d> {
                 if ReceiveFuture::new(&mut packet).await.is_ok()
                     && packet.packet_type().unwrap() == PacketType::Ack
                     && packet.id() == id
-                    && packet[0] == addr
+                    && packet.addr == addr
                 {
                     break;
                 };
@@ -193,11 +197,13 @@ impl<'d> Radio<'d> {
         packet.set_id(self.tx_id);
         packet.set_type(PacketType::Data);
         let mut i = 0;
+        info!("Starting to send message");
         loop {
             let start = Instant::now();
             self.send_inner(packet).await;
             if self.await_ack(packet.id()).await.is_ok() {
                 let end = Instant::now();
+                info!("Recevied ack");
                 return LogInfo {
                     retranmisisons: i,
                     time_elapsed: end - start,
@@ -243,7 +249,6 @@ impl<'d> Radio<'d> {
         core::future::poll_fn(|cx| {
             STATE.register(cx.waker());
             if r.events_disabled().read() != 0 {
-                info!("Data sent!");
                 r.events_disabled().write_value(0);
                 Poll::Ready(())
             } else {
@@ -303,7 +308,6 @@ impl<'a> Future for ReceiveFuture<'a> {
         let r = embassy_nrf::pac::RADIO;
         STATE.register(cx.waker());
         if r.events_disabled().read() != 0 {
-            info!("Data sent!");
             r.events_disabled().write_value(0);
             self.packet.addr = r.rxmatch().read().rxmatch();
             let res = if r.events_crcok().read() != 0 {

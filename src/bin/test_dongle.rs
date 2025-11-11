@@ -3,7 +3,7 @@
 
 use core::{mem, ops::Deref};
 
-use bruh78::radio::{self, Addresses, Packet, Radio, RadioClient};
+use bruh78::radio::{self, Addresses, LogInfo, Packet, Radio};
 use cortex_m_rt::entry;
 use defmt::{info, *};
 use embassy_executor::{Executor, InterruptExecutor, Spawner};
@@ -22,6 +22,7 @@ use embassy_nrf::{
 use defmt_rtt as _; // global logger
 use embassy_nrf as _;
 use embassy_time::Timer;
+use heapless::Vec;
 // time driver
 use panic_probe as _;
 use static_cell::StaticCell;
@@ -50,27 +51,33 @@ async fn radio_task(radio: Peri<'static, peripherals::RADIO>) {
         w.set_addr1(true);
         w.set_addr2(true);
     });
-    radio.run().await;
+    const N: usize = 1000;
+    let mut log_state: Vec<LogInfo, N> = Vec::new();
+    let mut packet = Packet::default();
+    packet.copy_from_slice(&[1, 2, 3]);
+    for _ in 0..N {
+        let res = radio.send(&mut packet).await;
+        log::info!("Sent one message!");
+        log_state.push(res);
+        Timer::after_millis(1).await;
+    }
+    for log in log_state {
+        log::info!(
+            "Duration Elapsed: {} | Number of retranmisisons: {}",
+            log.time_elapsed.as_micros(),
+            log.retranmisisons
+        );
+    }
+    loop {
+        Timer::after_secs(10000).await;
+    }
 }
 
 #[embassy_executor::task]
 async fn thread_task() {
-    let client = RadioClient {};
-    let master_loop = async {
-        loop {
-            let data = client.receive_packet().await;
-            log::info!("Received {:?}", &data[..]);
-            Timer::after_millis(1).await;
-        }
-    };
-
-    let heartbeat_loop = async {
-        loop {
-            log::info!("Heartbeat!");
-            Timer::after_secs(2).await;
-        }
-    };
-    join(master_loop, heartbeat_loop).await;
+    loop {
+        Timer::after_secs(1000).await;
+    }
 }
 
 #[interrupt]
@@ -80,8 +87,6 @@ unsafe fn EGU1_SWI1() {
 
 #[entry]
 fn main() -> ! {
-    log::info!("Hello World!");
-
     let mut nrf_config = embassy_nrf::config::Config::default();
     nrf_config.hfclk_source = HfclkSource::ExternalXtal;
     let p = embassy_nrf::init(nrf_config);
@@ -96,6 +101,7 @@ fn main() -> ! {
     let exectuor = THREAD_EXECUTOR.init_with(Executor::new);
     exectuor.run(|spawner| {
         spawner.spawn(logger_task(p.USBD)).unwrap();
+        log::info!("Hello World!");
         spawner.spawn(thread_task()).unwrap();
     });
 }

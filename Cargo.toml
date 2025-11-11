@@ -6,7 +6,6 @@ license = "MIT OR Apache-2.0"
 
 
 [dependencies]
-key-lib = {path = "../key_lib/", features = ["split"] }
 embassy-futures = { version = "0.1.1" }
 embassy-sync = { version = "0.7.1", features = ["defmt"] }
 embassy-executor = { version = "0.8.0", features = [
