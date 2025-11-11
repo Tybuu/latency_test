@@ -1,0 +1,25 @@
+[tasks.objcopy]
+command = "cargo"
+args = [
+    "objcopy",
+    "--release",
+    "--bin",
+    "right",
+    "--",
+    "-O",
+    "ihex",
+    "firmware.hex",
+]
+
+[tasks.uf2]
+command = "cargo"
+args = [
+    "hex-to-uf2",
+    "--input-path",
+    "firmware.hex",
+    "--output-path",
+    "firmware.uf2",
+    "--family",
+    "nrf52840",
+]
+dependencies = ["objcopy"]
