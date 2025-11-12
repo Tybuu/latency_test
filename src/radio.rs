@@ -162,7 +162,6 @@ impl<'d> Radio<'d> {
     }
 
     async fn transmit_ack(&mut self, id: u8) {
-        Timer::after_micros(40).await;
         let mut packet = Packet::default();
         packet.set_type(PacketType::Ack);
         packet.set_len(1);
@@ -180,7 +179,6 @@ impl<'d> Radio<'d> {
                 if ReceiveFuture::new(&mut packet).await.is_ok()
                     && packet.packet_type().unwrap() == PacketType::Ack
                     && packet.id() == id
-                    && packet.addr == addr
                 {
                     break;
                 };
@@ -197,13 +195,11 @@ impl<'d> Radio<'d> {
         packet.set_id(self.tx_id);
         packet.set_type(PacketType::Data);
         let mut i = 0;
-        info!("Starting to send message");
         loop {
             let start = Instant::now();
             self.send_inner(packet).await;
             if self.await_ack(packet.id()).await.is_ok() {
                 let end = Instant::now();
-                info!("Recevied ack");
                 return LogInfo {
                     retranmisisons: i,
                     time_elapsed: end - start,

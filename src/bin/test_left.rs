@@ -69,13 +69,17 @@ async fn radio_task(r: RadioResources) {
         w.set_addr0(true);
     });
     let mut packet = Packet::default();
-    for i in 0..1000 {
-        radio.receive(&mut packet).await;
-        log::info!("Recevied packet {}", i);
-    }
     loop {
-        Timer::after_secs(1000).await;
+        radio.receive(&mut packet).await;
+        log::info!("Recevied packet {}", packet.id());
     }
+    // for i in 0..1000 {
+    //     radio.receive(&mut packet).await;
+    //     log::info!("Recevied packet {}", i);
+    // }
+    // loop {
+    //     Timer::after_secs(1000).await;
+    // }
 }
 
 #[embassy_executor::task]

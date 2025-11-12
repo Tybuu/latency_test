@@ -55,22 +55,31 @@ async fn radio_task(radio: Peri<'static, peripherals::RADIO>) {
     let mut log_state: Vec<LogInfo, N> = Vec::new();
     let mut packet = Packet::default();
     packet.copy_from_slice(&[1, 2, 3]);
-    for _ in 0..N {
-        let res = radio.send(&mut packet).await;
-        log::info!("Sent one message!");
-        log_state.push(res);
-        Timer::after_millis(1).await;
-    }
-    for log in log_state {
-        log::info!(
-            "Duration Elapsed: {} | Number of retranmisisons: {}",
-            log.time_elapsed.as_micros(),
-            log.retranmisisons
-        );
-    }
     loop {
-        Timer::after_secs(10000).await;
+        let res = radio.send(&mut packet).await;
+        log::info!(
+            "Took {} us, {} retranmisisons",
+            res.time_elapsed.as_micros(),
+            res.retranmisisons
+        );
+        Timer::after_millis(1000).await;
     }
+    // for _ in 0..N {
+    //     let res = radio.send(&mut packet).await;
+    //     log::info!("Sent one message!");
+    //     log_state.push(res);
+    //     Timer::after_millis(1).await;
+    // }
+    // for log in log_state {
+    //     log::info!(
+    //         "Duration Elapsed: {} | Number of retranmisisons: {}",
+    //         log.time_elapsed.as_micros(),
+    //         log.retranmisisons
+    //     );
+    // }
+    // loop {
+    //     Timer::after_secs(10000).await;
+    // }
 }
 
 #[embassy_executor::task]
