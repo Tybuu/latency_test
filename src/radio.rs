@@ -184,7 +184,7 @@ impl<'d> Radio<'d> {
                 };
             }
         };
-        match select(Timer::after_micros(1000), receive_task).await {
+        match select(Timer::after_micros(300), receive_task).await {
             embassy_futures::select::Either::First(_) => Err(()),
             embassy_futures::select::Either::Second(_) => Ok(()),
         }
@@ -214,6 +214,7 @@ impl<'d> Radio<'d> {
         let r = embassy_nrf::pac::RADIO;
         loop {
             let res = ReceiveFuture::new(packet).await;
+            info!("Packet: {} | {}", packet.id(), packet.packet_type().is_ok());
             if res.is_ok() && packet.packet_type().unwrap() == PacketType::Data {
                 let addr = r.rxmatch().read().rxmatch();
                 self.transmit_ack(packet.id()).await;
@@ -348,16 +349,16 @@ pub async fn receive_packet() -> Packet {
 }
 
 #[repr(u8)]
-#[derive(Clone, Copy, PartialEq, Eq, TryFromPrimitive)]
-enum PacketType {
+#[derive(Clone, Copy, PartialEq, Eq, TryFromPrimitive, Debug)]
+pub enum PacketType {
     Data,
     Ack,
 }
 
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct Packet {
     pub addr: u8,
-    buffer: [u8; BUFFER_SIZE + META_SIZE],
+    pub buffer: [u8; BUFFER_SIZE + META_SIZE],
 }
 
 impl Packet {
@@ -393,11 +394,11 @@ impl Packet {
         self.buffer[Self::ID_INDEX] = id;
     }
 
-    fn packet_type(&self) -> Result<PacketType, TryFromPrimitiveError<PacketType>> {
+    pub fn packet_type(&self) -> Result<PacketType, TryFromPrimitiveError<PacketType>> {
         self.buffer[Self::TYPE_INDEX].try_into()
     }
 
-    fn set_type(&mut self, packet_type: PacketType) {
+    pub fn set_type(&mut self, packet_type: PacketType) {
         self.buffer[Self::TYPE_INDEX] = packet_type as u8;
     }
 
