@@ -2,7 +2,7 @@
 #![no_main]
 
 use assign_resources::assign_resources;
-use bruh78::radio::{self, Addresses, Packet, Radio};
+use bruh78::radio::{self, Addresses, Packet, Radio, RadioClient, RadioTest};
 use cortex_m_rt::entry;
 use defmt::{info, *};
 use embassy_executor::{Executor, InterruptExecutor, Spawner};
@@ -21,6 +21,7 @@ use embassy_nrf::{
 use defmt_rtt as _; // global logger
 use embassy_nrf as _;
 use embassy_time::Timer;
+use heapless::Vec;
 // time driver
 use panic_probe as _;
 use static_cell::StaticCell;
@@ -68,24 +69,15 @@ async fn radio_task(r: RadioResources) {
     radio.set_rx_addresses(|w| {
         w.set_addr0(true);
     });
-    let mut packet = Packet::default();
-    loop {
-        radio.receive(&mut packet).await;
-        log::info!("Recevied packet {}", packet.id());
-    }
-    // for i in 0..1000 {
-    //     radio.receive(&mut packet).await;
-    //     log::info!("Recevied packet {}", i);
-    // }
-    // loop {
-    //     Timer::after_secs(1000).await;
-    // }
+    radio.run().await;
 }
 
 #[embassy_executor::task]
 async fn thread_task(k: KeyboardResources) {
+    let mut rad = RadioClient {};
     loop {
-        Timer::after_secs(1000).await;
+        let packet = rad.receive_packet().await;
+        log::info!("Modern Received packet {}", packet.id());
     }
 }
 

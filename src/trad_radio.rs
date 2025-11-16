@@ -20,8 +20,8 @@ use embassy_sync::{
 use embassy_time::{Duration, Instant};
 
 use crate::radio::{
-    LogInfo, Packet, PacketType, DONGLE_ADDRESS, DONGLE_PREFIX, KEYBOARD_ADDRESS, LEFT_PREFIX,
-    RIGHT_PREFIX,
+    LogInfo, Packet, PacketType, RadioTest, DONGLE_ADDRESS, DONGLE_PREFIX, KEYBOARD_ADDRESS,
+    LEFT_PREFIX, RIGHT_PREFIX,
 };
 
 pub struct InterruptHandler {}
@@ -286,7 +286,7 @@ impl<'d> TradRadio<'d> {
         t.bitmode()
             .write(|w| w.set_bitmode(embassy_nrf::pac::timer::vals::Bitmode::_32BIT));
         t.prescaler().write(|w| w.set_prescaler(4));
-        t.cc(0).write_value(300);
+        t.cc(0).write_value(500);
 
         embassy_nrf::interrupt::typelevel::TIMER0::unpend();
         unsafe {
@@ -313,19 +313,51 @@ impl<'d> TradRadio<'d> {
         self.rx_addresses = r.rxaddresses().read().0;
     }
 
-    pub async fn receive_packet(&mut self) -> Packet {
-        let r = embassy_nrf::pac::RADIO;
-        cortex_m::interrupt::free(|_cs| unsafe {
-            RADIO_STATE = RadioState::Rx;
-            r.packetptr()
-                .write_value(CURRENT_PACKET.buffer.as_ptr() as u32);
-            compiler_fence(core::sync::atomic::Ordering::Release);
-            r.tasks_rxen().write_value(1);
-        });
-        P_CHAN.receive().await
-    }
+    // pub async fn receive_packet(&mut self) -> Packet {
+    //     let r = embassy_nrf::pac::RADIO;
+    //     cortex_m::interrupt::free(|_cs| unsafe {
+    //         RADIO_STATE = RadioState::Rx;
+    //         r.packetptr()
+    //             .write_value(CURRENT_PACKET.buffer.as_ptr() as u32);
+    //         compiler_fence(core::sync::atomic::Ordering::Release);
+    //         r.tasks_rxen().write_value(1);
+    //     });
+    //     P_CHAN.receive().await
+    // }
 
-    pub async fn send_packet(&mut self, packet: Packet) -> LogInfo {
+    // pub async fn send_packet(&mut self, packet: Packet) -> LogInfo {
+    //     let r = embassy_nrf::pac::RADIO;
+    //     // if ACTIVE.load(core::sync::atomic::Ordering::Acquire) {
+    //     //     core::future::poll_fn(|cx| {
+    //     //         TRAD_STATE.register(cx.waker());
+    //     //         if !ACTIVE.load(core::sync::atomic::Ordering::Acquire) {
+    //     //             Poll::Ready(())
+    //     //         } else {
+    //     //             Poll::Pending
+    //     //         }
+    //     //     })
+    //     //     .await;
+    //     // }
+    //     // ACTIVE.store(true, core::sync::atomic::Ordering::Release);
+    //     cortex_m::interrupt::free(|_cs| unsafe {
+    //         CURRENT_PACKET = packet;
+    //         CURRENT_PACKET.set_id(TX_ID);
+    //         CURRENT_PACKET.set_type(PacketType::Data);
+    //         compiler_fence(core::sync::atomic::Ordering::Release);
+    //         r.packetptr()
+    //             .write_value(CURRENT_PACKET.buffer.as_ptr() as u32);
+    //         RADIO_STATE = RadioState::Tx;
+    //         START = Instant::now().as_ticks();
+    //         COUNT = 0;
+    //         compiler_fence(core::sync::atomic::Ordering::Release);
+    //         r.tasks_txen().write_value(1);
+    //     });
+    //     CHAN.receive().await
+    // }
+}
+
+impl<'d> RadioTest for TradRadio<'d> {
+    async fn send_packet(&mut self, packet: &Packet) -> LogInfo {
         let r = embassy_nrf::pac::RADIO;
         // if ACTIVE.load(core::sync::atomic::Ordering::Acquire) {
         //     core::future::poll_fn(|cx| {
@@ -340,7 +372,7 @@ impl<'d> TradRadio<'d> {
         // }
         // ACTIVE.store(true, core::sync::atomic::Ordering::Release);
         cortex_m::interrupt::free(|_cs| unsafe {
-            CURRENT_PACKET = packet;
+            CURRENT_PACKET = *packet;
             CURRENT_PACKET.set_id(TX_ID);
             CURRENT_PACKET.set_type(PacketType::Data);
             compiler_fence(core::sync::atomic::Ordering::Release);
@@ -353,5 +385,17 @@ impl<'d> TradRadio<'d> {
             r.tasks_txen().write_value(1);
         });
         CHAN.receive().await
+    }
+
+    async fn receive_packet(&mut self) -> Packet {
+        let r = embassy_nrf::pac::RADIO;
+        cortex_m::interrupt::free(|_cs| unsafe {
+            RADIO_STATE = RadioState::Rx;
+            r.packetptr()
+                .write_value(CURRENT_PACKET.buffer.as_ptr() as u32);
+            compiler_fence(core::sync::atomic::Ordering::Release);
+            r.tasks_rxen().write_value(1);
+        });
+        P_CHAN.receive().await
     }
 }

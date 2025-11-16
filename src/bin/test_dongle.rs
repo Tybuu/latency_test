@@ -3,7 +3,7 @@
 
 use core::{mem, ops::Deref};
 
-use bruh78::radio::{self, Addresses, LogInfo, Packet, Radio};
+use bruh78::radio::{self, Addresses, LogInfo, Packet, Radio, RadioClient, RadioTest};
 use cortex_m_rt::entry;
 use defmt::{info, *};
 use embassy_executor::{Executor, InterruptExecutor, Spawner};
@@ -51,41 +51,27 @@ async fn radio_task(radio: Peri<'static, peripherals::RADIO>) {
         w.set_addr1(true);
         w.set_addr2(true);
     });
-    const N: usize = 1000;
-    let mut log_state: Vec<LogInfo, N> = Vec::new();
-    let mut packet = Packet::default();
-    packet.copy_from_slice(&[1, 2, 3]);
-    loop {
-        let res = radio.send(&mut packet).await;
-        log::info!(
-            "Took {} us, {} retranmisisons",
-            res.time_elapsed.as_micros(),
-            res.retranmisisons
-        );
-        Timer::after_millis(1000).await;
-    }
-    // for _ in 0..N {
-    //     let res = radio.send(&mut packet).await;
-    //     log::info!("Sent one message!");
-    //     log_state.push(res);
-    //     Timer::after_millis(1).await;
-    // }
-    // for log in log_state {
-    //     log::info!(
-    //         "Duration Elapsed: {} | Number of retranmisisons: {}",
-    //         log.time_elapsed.as_micros(),
-    //         log.retranmisisons
-    //     );
-    // }
-    // loop {
-    //     Timer::after_secs(10000).await;
-    // }
+    radio.run().await;
 }
 
 #[embassy_executor::task]
 async fn thread_task() {
+    let mut rad = RadioClient {};
+    const N: usize = 1000;
+    let mut packet = Packet::default();
+    packet.copy_from_slice(&[0, 1, 2]);
+    for i in 0..N {
+        let res = rad.send_packet(&packet).await;
+        log::info!(
+            "{}, {}, {}",
+            i,
+            res.time_elapsed.as_micros(),
+            res.retranmisisons
+        );
+        Timer::after_millis(10).await;
+    }
     loop {
-        Timer::after_secs(1000).await;
+        Timer::after_millis(10000).await;
     }
 }
 

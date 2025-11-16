@@ -4,7 +4,7 @@ args = [
     "objcopy",
     "--release",
     "--bin",
-    "test_left",
+    "test_trad_tx",
     "--",
     "-O",
     "ihex",

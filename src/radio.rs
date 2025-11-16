@@ -44,7 +44,7 @@ static DATA: Mutex<CriticalSectionRawMutex, Packet> = Mutex::new(Packet::default
 static REQUESTS: Channel<CriticalSectionRawMutex, Direction, NUM_PACKETS> = Channel::new();
 
 static RECV_CHANNEL: Channel<CriticalSectionRawMutex, Packet, NUM_PACKETS> = Channel::new();
-static SEND_CHANNEL: Channel<CriticalSectionRawMutex, Packet, NUM_PACKETS> = Channel::new();
+static TX_RESULT: Channel<CriticalSectionRawMutex, LogInfo, NUM_PACKETS> = Channel::new();
 
 pub struct InterruptHandler {}
 
@@ -56,6 +56,7 @@ impl interrupt::typelevel::Handler<typelevel::RADIO> for InterruptHandler {
     }
 }
 
+#[derive(Clone, Copy, Debug)]
 pub struct LogInfo {
     pub retranmisisons: u32,
     pub time_elapsed: Duration,
@@ -269,6 +270,23 @@ impl<'d> Radio<'d> {
         r.rxaddresses().write(f);
         self.rx_addresses = r.rxaddresses().read().0;
     }
+
+    pub async fn run(mut self) -> ! {
+        loop {
+            let req = REQUESTS.receive().await;
+            match req {
+                Direction::Tx(mut packet) => {
+                    let res = self.send(&mut packet).await;
+                    TX_RESULT.send(res).await;
+                }
+                Direction::Rx => {
+                    let mut packet = Packet::default();
+                    self.receive(&mut packet).await;
+                    RECV_CHANNEL.send(packet).await;
+                }
+            }
+        }
+    }
 }
 
 struct ReceiveFuture<'a> {
@@ -333,19 +351,28 @@ impl<'a> Drop for ReceiveFuture<'a> {
     }
 }
 
+pub trait RadioTest {
+    async fn send_packet(&mut self, packet: &Packet) -> LogInfo;
+    async fn receive_packet(&mut self) -> Packet;
+}
+
 enum Direction {
-    Tx,
+    Tx(Packet),
     Rx,
 }
 
-pub async fn send_packet(packet: &Packet) {
-    SEND_CHANNEL.send(*packet).await;
-    REQUESTS.send(Direction::Tx).await;
-}
+pub struct RadioClient {}
 
-pub async fn receive_packet() -> Packet {
-    REQUESTS.send(Direction::Rx).await;
-    RECV_CHANNEL.receive().await
+impl RadioTest for RadioClient {
+    async fn send_packet(&mut self, packet: &Packet) -> LogInfo {
+        REQUESTS.send(Direction::Tx(*packet)).await;
+        TX_RESULT.receive().await
+    }
+
+    async fn receive_packet(&mut self) -> Packet {
+        REQUESTS.send(Direction::Rx).await;
+        RECV_CHANNEL.receive().await
+    }
 }
 
 #[repr(u8)]

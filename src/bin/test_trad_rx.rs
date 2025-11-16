@@ -4,7 +4,7 @@
 use core::{mem, ops::Deref};
 
 use bruh78::{
-    radio::{self, LogInfo, Packet, Radio},
+    radio::{self, LogInfo, Packet, Radio, RadioTest},
     trad_radio::{self, Addresses, TradRadio},
 };
 use cortex_m_rt::entry;
@@ -63,6 +63,6 @@ async fn main(spawner: Spawner) {
     });
     loop {
         let packet = rad.receive_packet().await;
-        log::info!("Packet recevied {}", packet.id());
+        log::info!("Trad Received packet {}", packet.id());
     }
 }

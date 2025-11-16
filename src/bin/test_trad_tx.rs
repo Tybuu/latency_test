@@ -4,7 +4,7 @@
 use core::{mem, ops::Deref};
 
 use bruh78::{
-    radio::{self, LogInfo, Packet, Radio},
+    radio::{self, LogInfo, Packet, Radio, RadioTest},
     trad_radio::{self, Addresses, TradRadio},
 };
 use cortex_m_rt::entry;
@@ -24,7 +24,7 @@ use embassy_nrf::{
 
 use defmt_rtt as _; // global logger
 use embassy_nrf as _;
-use embassy_time::Timer;
+use embassy_time::{Duration, Timer};
 use heapless::Vec;
 // time driver
 use panic_probe as _;
@@ -64,13 +64,18 @@ async fn main(spawner: Spawner) {
     });
     let mut packet = Packet::default();
     packet.copy_from_slice(&[0, 1, 2]);
-    loop {
-        let res = rad.send_packet(packet).await;
+    const N: usize = 1000;
+    for i in 0..N {
+        let res = rad.send_packet(&packet).await;
         log::info!(
-            "Took {} us, {} retranmisisons",
+            "{}, {}, {}",
+            i,
             res.time_elapsed.as_micros(),
             res.retranmisisons
         );
-        Timer::after_millis(1000).await;
+        Timer::after_millis(1).await;
+    }
+    loop {
+        Timer::after_millis(10000).await;
     }
 }
